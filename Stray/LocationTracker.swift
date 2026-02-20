@@ -27,12 +27,18 @@ final class LocationTracker: NSObject, ObservableObject, CLLocationManagerDelega
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 5
         locationManager.activityType = .fitness
+        locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.pausesLocationUpdatesAutomatically = false
+        locationManager.showsBackgroundLocationIndicator = true
         authorizationStatus = locationManager.authorizationStatus
     }
 
     func start() {
         switch locationManager.authorizationStatus {
-        case .authorizedWhenInUse, .authorizedAlways:
+        case .authorizedAlways:
+            locationManager.startUpdatingLocation()
+        case .authorizedWhenInUse:
+            locationManager.requestAlwaysAuthorization()
             locationManager.startUpdatingLocation()
         case .notDetermined:
             locationManager.requestWhenInUseAuthorization()
@@ -45,8 +51,16 @@ final class LocationTracker: NSObject, ObservableObject, CLLocationManagerDelega
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
-        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+        switch manager.authorizationStatus {
+        case .authorizedAlways:
             manager.startUpdatingLocation()
+        case .authorizedWhenInUse:
+            manager.requestAlwaysAuthorization()
+            manager.startUpdatingLocation()
+        case .notDetermined, .denied, .restricted:
+            break
+        @unknown default:
+            break
         }
     }
 

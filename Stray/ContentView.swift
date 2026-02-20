@@ -145,8 +145,14 @@ struct ContentView: View {
     @ViewBuilder
     private var statusBanner: some View {
         switch locationTracker.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse:
+        case .authorizedAlways:
             Text("Tracking walk routes")
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+        case .authorizedWhenInUse:
+            Text("Enable Always Location for lock-screen/background tracking")
                 .font(.footnote.weight(.semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)

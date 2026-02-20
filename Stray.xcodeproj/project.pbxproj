@@ -150,6 +150,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Stray/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Stray uses your location in the background to keep tracking your routes while your phone is locked or when using other apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Stray uses your location to draw your walked routes on the map.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -185,6 +186,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Stray/Info.plist;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Stray uses your location in the background to keep tracking your routes while your phone is locked or when using other apps.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Stray uses your location to draw your walked routes on the map.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

@@ -2,8 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Stray uses your location in the background to keep tracking your routes while your phone is locked or when using other apps.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Stray uses your location to draw your walked routes on the map.</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 </dict>
