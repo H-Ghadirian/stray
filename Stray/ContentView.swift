@@ -12,7 +12,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \RoutePoint.timestamp, order: .forward) private var routePoints: [RoutePoint]
+    @Query private var routePoints: [RoutePoint]
 
     @StateObject private var locationTracker = LocationTracker()
     @State private var cameraPosition: MapCameraPosition = .automatic
@@ -23,22 +23,23 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             Map(position: $cameraPosition) {
                 ForEach(routeSegments.indices, id: \.self) { index in
-                    let coordinates = routeSegments[index].map(\.coordinate)
-                    MapPolyline(coordinates: coordinates)
+                    MapPolyline(coordinates: routeSegments[index])
                         .stroke(.blue, lineWidth: routeLineWidth)
                 }
 
                 if shouldShowDots {
-                    ForEach(routePoints) { point in
-                        Annotation("", coordinate: point.coordinate) {
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: routeDotSize, height: routeDotSize)
-                                .overlay {
-                                    if routeDotBorderWidth > 0 {
-                                        Circle().stroke(.white, lineWidth: routeDotBorderWidth)
+                    ForEach(sortedRoutePoints) { point in
+                        if let coordinate = point.coordinate {
+                            Annotation("", coordinate: coordinate) {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: routeDotSize, height: routeDotSize)
+                                    .overlay {
+                                        if routeDotBorderWidth > 0 {
+                                            Circle().stroke(.white, lineWidth: routeDotBorderWidth)
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
                 }
@@ -85,19 +86,20 @@ struct ContentView: View {
         .onAppear(perform: configureLocationTracking)
     }
 
-    private var routeSegments: [[RoutePoint]] {
-        guard !routePoints.isEmpty else { return [] }
+    private var routeSegments: [[CLLocationCoordinate2D]] {
+        guard !sortedRoutePoints.isEmpty else { return [] }
 
-        var segments: [[RoutePoint]] = []
-        var currentSegment: [RoutePoint] = []
-        var previousPoint: RoutePoint?
+        var segments: [[CLLocationCoordinate2D]] = []
+        var currentSegment: [CLLocationCoordinate2D] = []
+        var previousState: (location: CLLocation, timestamp: Date)?
 
-        for point in routePoints {
-            if let previousPoint {
-                let previousLocation = CLLocation(latitude: previousPoint.latitude, longitude: previousPoint.longitude)
-                let currentLocation = CLLocation(latitude: point.latitude, longitude: point.longitude)
-                let timeGap = point.timestamp.timeIntervalSince(previousPoint.timestamp)
-                let distanceGap = currentLocation.distance(from: previousLocation)
+        for point in sortedRoutePoints {
+            guard let coordinate = point.coordinate, let timestamp = point.timestamp else { continue }
+            let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+
+            if let previousState {
+                let timeGap = timestamp.timeIntervalSince(previousState.timestamp)
+                let distanceGap = currentLocation.distance(from: previousState.location)
 
                 if timeGap > 15 * 60 || distanceGap > 500 {
                     if currentSegment.count >= 2 {
@@ -107,8 +109,8 @@ struct ContentView: View {
                 }
             }
 
-            currentSegment.append(point)
-            previousPoint = point
+            currentSegment.append(coordinate)
+            previousState = (currentLocation, timestamp)
         }
 
         if currentSegment.count >= 2 {
@@ -120,6 +122,12 @@ struct ContentView: View {
 
     private var shouldShowDots: Bool {
         currentLatitudeDelta < 0.09
+    }
+
+    private var sortedRoutePoints: [RoutePoint] {
+        routePoints.sorted {
+            ($0.timestamp ?? .distantPast) < ($1.timestamp ?? .distantPast)
+        }
     }
 
     private var routeDotSize: CGFloat {
@@ -181,7 +189,7 @@ struct ContentView: View {
     private func centerOnLatestLocation() {
         if let coordinate = locationTracker.latestLocation?.coordinate {
             centerOn(coordinate: coordinate)
-        } else if let coordinate = routePoints.last?.coordinate {
+        } else if let coordinate = sortedRoutePoints.last(where: { $0.coordinate != nil })?.coordinate {
             centerOn(coordinate: coordinate)
         }
     }

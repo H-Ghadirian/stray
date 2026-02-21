@@ -14,16 +14,27 @@ struct StrayApp: App {
         let schema = Schema([
             RoutePoint.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+        let cloudConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [cloudConfiguration])
         } catch {
-            let fallbackConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            print("Cloud-backed container unavailable, falling back to local store: \(error)")
+            let localConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             do {
-                return try ModelContainer(for: schema, configurations: [fallbackConfiguration])
+                return try ModelContainer(for: schema, configurations: [localConfiguration])
             } catch {
-                fatalError("Could not create ModelContainer, including in-memory fallback: \(error)")
+                let inMemoryConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                do {
+                    return try ModelContainer(for: schema, configurations: [inMemoryConfiguration])
+                } catch {
+                    fatalError("Could not create ModelContainer: \(error)")
+                }
             }
         }
     }()
