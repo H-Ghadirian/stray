@@ -17,6 +17,7 @@ struct ContentView: View {
     @StateObject private var locationTracker = LocationTracker()
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var centeredOnUser = false
+    @State private var currentLatitudeDelta: CLLocationDegrees = 0.01
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -24,17 +25,21 @@ struct ContentView: View {
                 ForEach(routeSegments.indices, id: \.self) { index in
                     let coordinates = routeSegments[index].map(\.coordinate)
                     MapPolyline(coordinates: coordinates)
-                        .stroke(.blue, lineWidth: 3)
+                        .stroke(.blue, lineWidth: routeLineWidth)
                 }
 
-                ForEach(routePoints) { point in
-                    Annotation("", coordinate: point.coordinate) {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 7, height: 7)
-                            .overlay(
-                                Circle().stroke(.white, lineWidth: 1)
-                            )
+                if shouldShowDots {
+                    ForEach(routePoints) { point in
+                        Annotation("", coordinate: point.coordinate) {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: routeDotSize, height: routeDotSize)
+                                .overlay {
+                                    if routeDotBorderWidth > 0 {
+                                        Circle().stroke(.white, lineWidth: routeDotBorderWidth)
+                                    }
+                                }
+                        }
                     }
                 }
 
@@ -52,6 +57,9 @@ struct ContentView: View {
             .mapControls {
                 MapCompass()
                 MapUserLocationButton()
+            }
+            .onMapCameraChange { context in
+                currentLatitudeDelta = context.region.span.latitudeDelta
             }
             .ignoresSafeArea()
 
@@ -108,6 +116,22 @@ struct ContentView: View {
         }
 
         return segments
+    }
+
+    private var shouldShowDots: Bool {
+        currentLatitudeDelta < 0.09
+    }
+
+    private var routeDotSize: CGFloat {
+        currentLatitudeDelta < 0.02 ? 7 : 5
+    }
+
+    private var routeDotBorderWidth: CGFloat {
+        currentLatitudeDelta < 0.02 ? 1 : 0
+    }
+
+    private var routeLineWidth: CGFloat {
+        currentLatitudeDelta > 0.09 ? 4.5 : 3
     }
 
     @ViewBuilder
