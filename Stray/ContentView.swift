@@ -5,57 +5,173 @@
 //  Created by ghadirianh on 22.02.26.
 //
 
+import CoreLocation
+import MapKit
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \RoutePoint.timestamp, order: .forward) private var routePoints: [RoutePoint]
+
+    @StateObject private var locationTracker = LocationTracker()
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var centeredOnUser = false
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        ZStack(alignment: .top) {
+            Map(position: $cameraPosition) {
+                ForEach(routeSegments.indices, id: \.self) { index in
+                    let coordinates = routeSegments[index].map(\.coordinate)
+                    MapPolyline(coordinates: coordinates)
+                        .stroke(.blue, lineWidth: 3)
+                }
+
+                ForEach(routePoints) { point in
+                    Annotation("", coordinate: point.coordinate) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 7, height: 7)
+                            .overlay(
+                                Circle().stroke(.white, lineWidth: 1)
+                            )
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+
+                if let latestCoordinate = locationTracker.latestLocation?.coordinate {
+                    Annotation("You", coordinate: latestCoordinate) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Circle().stroke(.white, lineWidth: 2)
+                            )
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .mapControls {
+                MapCompass()
+                MapUserLocationButton()
+            }
+            .ignoresSafeArea()
+
+            VStack(spacing: 8) {
+                statusBanner
+
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Button {
+                            centerOnLatestLocation()
+                        } label: {
+                            Label("Center", systemImage: "location.fill")
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.regularMaterial, in: Capsule())
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .onAppear(perform: configureLocationTracking)
+    }
+
+    private var routeSegments: [[RoutePoint]] {
+        guard !routePoints.isEmpty else { return [] }
+
+        var segments: [[RoutePoint]] = []
+        var currentSegment: [RoutePoint] = []
+        var previousPoint: RoutePoint?
+
+        for point in routePoints {
+            if let previousPoint {
+                let previousLocation = CLLocation(latitude: previousPoint.latitude, longitude: previousPoint.longitude)
+                let currentLocation = CLLocation(latitude: point.latitude, longitude: point.longitude)
+                let timeGap = point.timestamp.timeIntervalSince(previousPoint.timestamp)
+                let distanceGap = currentLocation.distance(from: previousLocation)
+
+                if timeGap > 15 * 60 || distanceGap > 500 {
+                    if currentSegment.count >= 2 {
+                        segments.append(currentSegment)
+                    }
+                    currentSegment = []
+                }
+            }
+
+            currentSegment.append(point)
+            previousPoint = point
+        }
+
+        if currentSegment.count >= 2 {
+            segments.append(currentSegment)
+        }
+
+        return segments
+    }
+
+    @ViewBuilder
+    private var statusBanner: some View {
+        switch locationTracker.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            Text("Tracking walk routes")
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+        case .denied, .restricted:
+            Text("Enable location in Settings to track your path")
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+        case .notDetermined:
+            Text("Requesting location permission...")
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+        @unknown default:
+            EmptyView()
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+    private func configureLocationTracking() {
+        locationTracker.onRoutePoint = { location in
+            let routePoint = RoutePoint(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude,
+                timestamp: location.timestamp
+            )
+            modelContext.insert(routePoint)
+            try? modelContext.save()
+
+            if !centeredOnUser {
+                centerOn(coordinate: location.coordinate)
+                centeredOnUser = true
+            }
+        }
+        locationTracker.start()
+    }
+
+    private func centerOnLatestLocation() {
+        if let coordinate = locationTracker.latestLocation?.coordinate {
+            centerOn(coordinate: coordinate)
+        } else if let coordinate = routePoints.last?.coordinate {
+            centerOn(coordinate: coordinate)
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
+    private func centerOn(coordinate: CLLocationCoordinate2D) {
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        cameraPosition = .region(region)
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: RoutePoint.self, inMemory: true)
 }
